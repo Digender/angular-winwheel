@@ -38,7 +38,7 @@ function Winwheel(options, drawWheel)
         'outerRadius'       : null,         // The radius of the outside of the wheel. If left null it will be set to the radius from the center of the canvas to its shortest side.
         'innerRadius'       : 0,            // Normally 0. Allows the creation of rings / doughnuts if set to value > 0. Should not exceed outer radius.
         'numSegments'       : 1,            // The number of segments. Need at least one to draw.
-        'drawMode'          : 'code',       // The draw mode. Possible values are 'code' and 'image'. Default is code which means segments are drawn using canvas arc() function.
+        'drawMode'          : 'code',       // The draw mode. Possible values are 'code', 'image', 'segmentImage'. Default is code which means segments are drawn using canvas arc() function.
         'rotationAngle'     : 0,            // The angle of rotation of the wheel - 0 is 12 o'clock position.
         'textFontFamily'    : 'Arial',      // Segment text font, you should use web safe fonts.
         'textFontSize'      : 20,           // Size of the segment text.
@@ -57,7 +57,8 @@ function Winwheel(options, drawWheel)
         'imageOverlay'      : false,        // If set to true in image drawing mode the outline of the segments will be displayed over the image. Does nothing in code drawMode.
         'drawText'          : true,         // By default the text of the segments is rendered in code drawMode and not in image drawMode.
         'pointerAngle'      : 0,            // Location of the pointer that indicates the prize when wheel has stopped. Default is 0 so the (corrected) 12 o'clock position.
-        'wheelImage'        : null          // Must be set to image data in order to use image to draw the wheel - drawMode must also be 'image'.
+        'wheelImage'        : null,         // Must be set to image data in order to use image to draw the wheel - drawMode must also be 'image'.
+        'imageDirection'    : 'N'           // Used when drawMode is segmentImage. Default is north, can also be (E)ast, (S)outh, (W)est.
     };
     
     // -----------------------------------------
@@ -182,7 +183,7 @@ function Winwheel(options, drawWheel)
     
     // ------------------------------------------
     // On that note, if the drawMode is image change some defaults provided a value has not been specified.
-    if (this.drawMode == 'image')
+    if ((this.drawMode == 'image') || (this.drawMode == 'segmentImage'))
     {
         // Remove grey fillStyle.
         if (typeof(options['fillStyle']) === 'undefined')
@@ -237,6 +238,23 @@ function Winwheel(options, drawWheel)
     if (drawWheel == true)
     {
         this.draw(this.clearTheCanvas);
+    } 
+    else if (this.drawMode == 'segmentImage')
+    {
+        // If segment image then loop though all the segments and load the images for them setting a callback
+        // which will call the draw function of the wheel once all the images have been loaded.
+        winwheelToDrawDuringAnimation = this;
+        winhweelAlreadyDrawn = false;
+        
+        for (y = 1; y <= this.numSegments; y ++)
+        {
+            if (this.segments[y].image !== null)
+            {
+                this.segments[y].imgData = new Image();
+                this.segments[y].imgData.onload = winwheelLoadedImage;
+                this.segments[y].imgData.src = this.segments[y].image;
+            }
+        }
     }
 }
 
@@ -350,6 +368,25 @@ Winwheel.prototype.draw = function(clearTheCanvas)
                 this.drawSegments();
             }
         }
+        else if (this.drawMode == 'segmentImage')
+        {
+            // Draw the wheel by rendering the image for each segment.
+            this.drawSegmentImages();
+            
+            // If we are to draw the text, do so before the overlay is drawn
+            // as this allows the overlay to be used to create some interesting effects.
+            if (this.drawText == true)
+            {
+                this.drawSegmentText();
+            }
+            
+            // If image overlay is true then call function to draw the segments over the top of the image. 
+            // This is useful during development to check alignment between where the code thinks the segments are and where they appear on the image.
+            if (this.imageOverlay == true)
+            {
+                this.drawSegments();
+            }
+        }
         else
         {
             // The default operation is to draw the segments using code via the canvas arc() method.
@@ -424,6 +461,115 @@ Winwheel.prototype.drawWheelImage = function()
         this.ctx.drawImage(this.wheelImage, imageLeft, imageTop);
         
         this.ctx.restore();
+    }
+}
+
+// ====================================================================================================================
+// This function draws the wheel on the canvas by rendering the image for each segment.
+// ====================================================================================================================
+Winwheel.prototype.drawSegmentImages = function()
+{
+    // Again check have context in case this function was called directly and not via draw function.
+    if (this.ctx)
+    {
+        // Draw the segments if there is at least one in the segments array.
+        if (this.segments)
+        {
+            // Loop though and output all segments - position 0 of the array is not used, so start loop from index 1
+            // this is to avoid confusion when talking about the first segment.
+            for (x = 1; x <= this.numSegments; x ++)
+            {
+                // Get the segment object as we need it to read options from.
+                seg = this.segments[x];
+                
+                // Check image has loaded so a property such as height has a value.
+                if (seg.imgData.height)
+                {
+                    // Work out the correct X and Y to draw the image at which depends on the direction of the image.
+                    // Images can be created in 4 directions. North, South, East, West.
+                    // North: Outside at top, inside at bottom. Sits evenly over the 0 degrees angle.
+                    // South: Outside at bottom, inside at top. Sits evenly over the 180 degrees angle.
+                    // East: Outside at right, inside at left. Sits evenly over the 90 degrees angle.
+                    // West: Outside at left, inside at right. Sits evenly over the 270 degrees angle.
+                    var imageLeft = 0;
+                    var imageTop = 0;
+                    var imageAngle = 0;
+                    var imageDirection = '';
+                    
+                    if (seg.imageDirection !== null)
+                        imageDirection = seg.imageDirection;
+                    else 
+                        imageDirection = this.imageDirection;
+                    
+                    if (imageDirection == 'S')
+                    {
+                        // Left set so image sits half/half over the 180 degrees point.
+                        imageLeft = (this.centerX - (seg.imgData.width / 2));
+                        
+                        // Top so image starts at the centerY.
+                        imageTop  = this.centerY;
+                        
+                        // Angle to draw the image is its starting angle + half its size.
+                        // Here we add 180 to the angle to the segment is poistioned correctly.
+                        imageAngle = (seg.startAngle + 180 + ((seg.endAngle - seg.startAngle) / 2));
+                    }
+                    else if (imageDirection == 'E')
+                    {
+                        // Left set so image starts and the center point.
+                        imageLeft = this.centerX;
+                        
+                        // Top is so that it sits half/half over the 90 degree point.
+                        imageTop  = (this.centerY - (seg.imgData.height / 2));
+                        
+                        // Again get the angle in the center of the segment and add it to the rotation angle.
+                        // this time we need to add 270 to that to the segment is rendered the correct place.
+                        imageAngle = (seg.startAngle + 270 + ((seg.endAngle - seg.startAngle) / 2));
+                    }
+                    else if (imageDirection == 'W')
+                    {
+                        // Left is the centerX minus the width of the image.
+                        imageLeft = (this.centerX - seg.imgData.width);
+                        
+                        // Top is so that it sits half/half over the 270 degree point.
+                        imageTop  = (this.centerY - (seg.imgData.height / 2));
+                        
+                        // Again get the angle in the center of the segment and add it to the rotation angle.
+                        // this time we need to add 90 to that to the segment is rendered the correct place.
+                        imageAngle = (seg.startAngle + 90 + ((seg.endAngle - seg.startAngle) / 2));
+                    }
+                    else // North is the default.
+                    {
+                        // Left set so image sits half/half over the 0 degrees point.
+                        imageLeft = (this.centerX - (seg.imgData.width / 2));
+                        
+                        // Top so image is its height out (above) the center point.
+                        imageTop  = (this.centerY - seg.imgData.height);
+                        
+                        // Angle to draw the image is its starting angle + half its size.
+                        // this sits it half/half over the center angle of the segment.
+                        imageAngle = (seg.startAngle + ((seg.endAngle - seg.startAngle) / 2));
+                    }
+                    
+                    // --------------------------------------------------
+                    // Rotate to the position of the segment and then draw the image.
+                    this.ctx.save();
+                    this.ctx.translate(this.centerX, this.centerY);
+                    
+                    // So math here is the rotation angle of the wheel plus half way between the start and end angle of the segment.
+                    this.ctx.rotate(this.degToRad(this.rotationAngle + imageAngle));
+                    this.ctx.translate(-this.centerX, -this.centerY);
+                    
+                    // Draw the image.
+                    this.ctx.drawImage(seg.imgData, imageLeft, imageTop);
+                    
+                    this.ctx.restore();
+                }
+                else
+                {
+                    console.log('Segment ' + x + ' imgData is not loaded');
+                }
+            }
+        }
     }
 }
 
@@ -1843,7 +1989,10 @@ function Segment(options)
         'textMargin'        : null,
         'textFillStyle'     : null,
         'textStrokeStyle'   : null,
-        'textLineWidth'     : null
+        'textLineWidth'     : null,
+        'image'             : null, // Name/path to the image
+        'imageDirection'    : null, // Direction of the image, can be set globally for the whole wheel.
+        'imgData'           : null  // Image object created here and loaded with image data.
     };
 
     // Now loop through the default options and create properties of this class set to the value for 
@@ -1874,6 +2023,28 @@ function Segment(options)
     // the values are updated every time the updateSegmentSizes() function is called.
     this.startAngle = 0;
     this.endAngle   = 0;
+}
+
+// ====================================================================================================================
+// Changes an image for a segment by setting a callback to render the wheel once the image has loaded.
+// ====================================================================================================================
+Segment.prototype.changeImage = function(image, imageDirection)
+{
+    // Change image name, blank image data.
+    this.image = image;
+    this.imgData = null;
+    
+    // Set direction.
+    if (imageDirection)
+    {
+        this.imageDirection = imageDirection;
+    }
+    
+    // Set imgData to a new image object, change set callback and change src (just like in wheel constructor).
+    winhweelAlreadyDrawn = false;
+    this.imgData = new Image();
+    this.imgData.onload = winwheelLoadedImage;
+    this.imgData.src = this.image;
 }
 
 // ====================================================================================================================
@@ -1923,8 +2094,6 @@ function winwheelPercentToDegrees(percentValue)
 // In order for the wheel to be re-drawn during the spin animation the function greesock calls needs to be outside
 // of the class as for some reason it errors if try to call winwheel.draw() directly.
 // ====================================================================================================================
-var winwheelToDrawDuringAnimation = null;  // This global is set by the winwheel class to the wheel object to be re-drawn.
-
 function winwheelAnimationLoop()
 {
     if (winwheelToDrawDuringAnimation)
@@ -1956,6 +2125,8 @@ function winwheelAnimationLoop()
 // This function is called-back when the greensock animation has finished. We remove the event listener to the function 
 // above to stop the wheel being re-drawn all the time even though it is not animating as the greensock ticker keeps going.
 // ====================================================================================================================
+var winwheelToDrawDuringAnimation = null;  // This global is set by the winwheel class to the wheel object to be re-drawn.
+
 function winwheelStopAnimation(canCallback)
 {   
     // Remove the redraw from the ticker.
@@ -1969,5 +2140,40 @@ function winwheelStopAnimation(canCallback)
         {
             winwheelToDrawDuringAnimation.animation.callbackFinished();
         }
+    }
+}
+
+// ====================================================================================================================
+// Called after the image has loaded for each segment. Once all the images are loaded it then calls the draw function
+// on the wheel to render it. Used in constructor and also when a segment image is changed.
+// ====================================================================================================================
+var winhweelAlreadyDrawn = false;
+
+function winwheelLoadedImage()
+{
+    // Prevent multiple drawings of the wheel which ocurrs without this check due to timing of function calls.
+    if (winhweelAlreadyDrawn == false)
+    {
+        // Set to 0.
+        var winwheelImageLoadCount = 0;
+        
+        // Loop though all the segments of the wheel and check if image data loaded, if so increment counter.
+        for (i = 1; i <= winwheelToDrawDuringAnimation.numSegments; i ++)
+        {
+            // Check the image data object is not null and also that the image has completed loading by checking
+            // that a property of it such as the height has some sort of true value.
+            if ((winwheelToDrawDuringAnimation.segments[i].imgData != null) && (winwheelToDrawDuringAnimation.segments[i].imgData.height))
+            {
+                winwheelImageLoadCount ++;
+            }
+        }
+        
+        // If number of images loaded matches the segments then all the images for the wheel are loaded.
+        if (winwheelImageLoadCount == winwheelToDrawDuringAnimation.numSegments)
+        {
+            // Call draw function to render the wheel.
+            winhweelAlreadyDrawn = true;
+            winwheelToDrawDuringAnimation.draw();
+        }
     }
 }
