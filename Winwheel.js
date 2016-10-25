@@ -351,25 +351,14 @@ Winwheel.prototype.draw = function(clearTheCanvas)
         // Call functions to draw the segments and then segment text.
         if (this.drawMode == 'image')
         {
-            // Draw the wheel by loading and drawing an image such as a png on the canvas.
-            this.drawWheelImage();
-            
-            // If we are to draw the text, do so before the overlay is drawn
-            // as this allows the overlay to be used to create some interesting effects.
-            if (this.drawText == true)
-            {
-                this.drawSegmentText();
-            }
-            
-            // If image overlay is true then call function to draw the segments over the top of the image. 
+
+            // If image overlay is true then call function to draw the segments over the top of the image.
             // This is useful during development to check alignment between where the code thinks the segments are and where they appear on the image.
             if (this.imageOverlay == true)
             {
                 this.drawSegments();
             }
-        }
-        else if (this.drawMode == 'segmentImage')
-        {
+
             // Draw the wheel by rendering the image for each segment.
             this.drawSegmentImages();
             
@@ -379,13 +368,34 @@ Winwheel.prototype.draw = function(clearTheCanvas)
             {
                 this.drawSegmentText();
             }
+
+            // Draw the wheel by loading and drawing an image such as a png on the canvas.
+            this.drawWheelImage();
             
-            // If image overlay is true then call function to draw the segments over the top of the image. 
+
+        }
+        else if (this.drawMode == 'segmentImage')
+        {
+            // If image overlay is true then call function to draw the segments over the top of the image.
             // This is useful during development to check alignment between where the code thinks the segments are and where they appear on the image.
             if (this.imageOverlay == true)
             {
                 this.drawSegments();
             }
+
+            // Draw the wheel by rendering the image for each segment.
+            this.drawSegmentImages();
+            
+            // If we are to draw the text, do so before the overlay is drawn
+            // as this allows the overlay to be used to create some interesting effects.
+            if (this.drawText == true)
+            {
+                this.drawSegmentText();
+            }
+
+            // Draw the wheel by loading and drawing an image such as a png on the canvas.
+            this.drawWheelImage();
+
         }
         else
         {
@@ -537,6 +547,17 @@ Winwheel.prototype.drawSegmentImages = function()
                         // this time we need to add 90 to that to the segment is rendered the correct place.
                         imageAngle = (seg.startAngle + 90 + ((seg.endAngle - seg.startAngle) / 2));
                     }
+                    else if (imageDirection == 'NW') {
+                        // Left is the centerX minus the width of the image.
+                        imageLeft = (this.centerX - seg.imgData.width - 5);
+
+                        // Top is so that it sits half/half over the 270 degree point.
+                        imageTop  = (this.centerY - seg.imgData.height + 11);
+
+                        // Again get the angle in the center of the segment and add it to the rotation angle.
+                        // this time we need to add 90 to that to the segment is rendered the correct place.
+                        imageAngle = (seg.startAngle + ((seg.endAngle - seg.startAngle)));
+                    }
                     else // North is the default.
                     {
                         // Left set so image sits half/half over the 0 degrees point.
@@ -547,7 +568,8 @@ Winwheel.prototype.drawSegmentImages = function()
                         
                         // Angle to draw the image is its starting angle + half its size.
                         // this sits it half/half over the center angle of the segment.
-                        imageAngle = (seg.startAngle + ((seg.endAngle - seg.startAngle) / 2));
+                        //imageAngle = (seg.startAngle + ((seg.endAngle - seg.startAngle) / 2));
+                        imageAngle = (seg.startAngle + ((seg.endAngle - seg.startAngle)));
                     }
                     
                     // --------------------------------------------------
@@ -595,13 +617,7 @@ Winwheel.prototype.drawSegments = function()
                 var lineWidth;
                 var strokeStyle;
                 
-                // Set the variables that defined in the segment, or use the default options.
-                if (seg.fillStyle !== null)
-                    fillStyle = seg.fillStyle;
-                else
-                    fillStyle = this.fillStyle;
-                
-                this.ctx.fillStyle = fillStyle;
+
                 
                 if (seg.lineWidth !== null)
                     lineWidth = seg.lineWidth;
@@ -620,7 +636,7 @@ Winwheel.prototype.drawSegments = function()
                 
                 // Check there is a strokeStyle or fillStyle, if either the the segment is invisible so should not 
                 // try to draw it otherwise a path is began but not ended.
-                if ((strokeStyle) || (fillStyle))
+                if ((strokeStyle) || (fillStyle) || (seg.gradientStyle))
                 {
                     // ----------------------------------
                     // Begin a path as the segment consists of an arc and 2 lines.
@@ -656,11 +672,27 @@ Winwheel.prototype.drawSegments = function()
                         // If no inner radius then we draw a line back to the center of the wheel.
                         this.ctx.lineTo(this.centerX, this.centerY);
                     }
-                    
-                    // Fill and stroke the segment. Only do either if a style was specified, if the style is null then 
+
+                    // Set the variables that defined in the segment, or use the default options.
+                    if (seg.fillStyle !== null)
+                        fillStyle = seg.fillStyle;
+                    else
+                        fillStyle = this.fillStyle;
+
+                    var gradient = null;
+                    if (seg.gradientStyle !== null) {
+                        var gradient = this.ctx.createRadialGradient(this.centerX, this.centerY, 280, this.centerX, this.centerY, 0);
+                        //gradient = this.ctx.createLinearGradient(0,0,this.centerX, this.centerY);
+                        gradient.addColorStop(0, seg.gradientStyle.offSet0);
+                        gradient.addColorStop(1, seg.gradientStyle.offSet1);
+                    }
+
+                    this.ctx.fillStyle = seg.gradientStyle !== null ? gradient : fillStyle;
+
+                    // Fill and stroke the segment. Only do either if a style was specified, if the style is null then
                     // we assume the developer did not want that particular thing. 
                     // For example no stroke style so no lines to be drawn.
-                    if (fillStyle)
+                    if (fillStyle || seg.gradientStyle)
                         this.ctx.fill();
                     
                     if (strokeStyle)
