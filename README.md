@@ -1,4 +1,4 @@
-# javascript-winwheel
+# angular-winwheel
 Create spinning prize wheels on HTML canvas with Winwheel.js
 
 ## Description
@@ -42,9 +42,6 @@ See the /examples folder for examples of some of the types of things you can cre
 Please visit http://dougtesting.net/winwheel/docs to see a complete set of tutorials on how to use Winwheel.js as well as other documentation such as class references.
 
 ## Maintainer
-Douglas McKechie https://github.com/zarocknz
+Digender Mahara https://github.com/Digender
 
-Keep informed about Winwheel.js by following https://twitter.com/dougtesting
-
-## TODO
-More examples
+Keep informed about Winwheel.js by following https://twitter.com/mdj_20

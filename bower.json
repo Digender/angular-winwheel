@@ -1,0 +1,19 @@
+{
+  "name": "angular-winwheel",
+  "homepage": "https://github.com/Digender/javascript-winwheel",
+  "authors": [
+    "Digender <mdigender@gmail.com>"
+  ],
+  "description": "Angular JS Directve for Javascript Winwheel",
+  "main": "Winwheel.js",
+  "keywords": [
+    "AngularJS",
+    "WinWheel",
+    "Javascript",
+    "Library"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "angular": "^1.4.0"
+  }
+}
